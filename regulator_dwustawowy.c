@@ -25,6 +25,7 @@
 int _sp=60, _h=8;
 float _pv3=300, _e=-200;
 int sw1, sw5, sw9, sw13;
+int device_state = 0;  // 0 - wyłączone, 1 - włączone
 
 // Funkcje opóźnienia czasowego
 void delay_ms(int ms) {
@@ -165,10 +166,9 @@ void change_values() {
     _h = 10;
 
   if((_sp - _pv3) > _h/100*400/2)
-  	_e = 11;
+    _e = 11; // Włącz urządzenie
   if((_sp - _pv3) < -_h/100*400/2)
-  	_e = 00;
-
+    _e = 0;  // Wyłącz urządzenie
 }
 
 /**
@@ -227,13 +227,13 @@ int main(void) {
     LCD2x16_init(); // Inicjalizacja wyświetlacza
     LCD2x16_clear(); // Czyszczenie wyświetlacza
     SW_init();       // Inicjalizacja pinów przycisków
-  	ADC_init();
+    ADC_init();
 
     while(1) {
-      	change_values();
-      	_pv3 = read_A5();
-        print_LCD(); // Wyświetlanie parametrów (zakomentowane)
-        //print_SW();     // Wyświetlanie stanów przycisków
+        change_values();  // Sprawdzamy zmiany przycisków
+        _pv3 = read_A5(); // Odczytujemy aktualną wartość procesu
+        print_LCD(); // Wyświetlamy dane na LCD
+        // print_SW(); // Wyświetlanie stanów przycisków
     }
 
     return 0;
