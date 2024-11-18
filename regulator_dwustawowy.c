@@ -22,10 +22,10 @@
 #define SCALED_MAX 400        // Zakres skalowania do 0-400
 
 // Zmienne globalne do wyświetlania parametrów
-int _sp=60, _h=8;
+int _sp=50, _h=4;
 float _pv3=300, _e=-200;
+bool cv;
 int sw1, sw5, sw9, sw13;
-int device_state = 0;  // 0 - wyłączone, 1 - włączone
 
 // Funkcje opóźnienia czasowego
 void delay_ms(int ms) {
@@ -153,6 +153,9 @@ void read_SW() {
     sw13 = (PINB & (1 << (SW13_PIN - 8))) ? 1 : 0;
 }
 
+/**
+ * @brief Zmienia wartości stanów przycisków w sw1, sw5, sw9, sw13
+ */
 void change_values() {
   read_SW();
 
@@ -164,11 +167,6 @@ void change_values() {
     _h = 4;
   if(sw13 == 0)
     _h = 10;
-
-  if((_sp - _pv3) > _h/100*400/2)
-    _e = 11; // Włącz urządzenie
-  if((_sp - _pv3) < -_h/100*400/2)
-    _e = 0;  // Wyłącz urządzenie
 }
 
 /**
@@ -204,13 +202,42 @@ void ADC_init() {
  * @brief Odczytuje napięcie na pinie A5 i przelicza na zakres 0-5V
  * @return Napięcie w woltach (float) w zakresie 0.00 do 5.00V
  */
-float read_A5() {
+float read_inputs() {
     ADCSRA |= (1 << ADSC); // Rozpocznij konwersję ADC na kanale A5
     while (ADCSRA & (1 << ADSC)); // Czekaj na zakończenie konwersji
 
     int adc_value = ADC;               // Pobierz wartość ADC
-    return (adc_value / 1023.0) * 400; // Przeskaluj do napięcia w zakresie 0–5V
+    _pv3 = (adc_value / 1023.0) * 400; // Przeskaluj do napięcia w zakresie 0–5V
+  	
+  	float setpoint = (_sp / 100.0) * 400;
+    _e = setpoint - _pv3;
+  
 }
+
+/**
+ * @brief Implementacja regulatora dwustawowego.
+ * Steruje stanem urządzenia na podstawie wartości PV (zmienna procesu),
+ * wartości SP (wartość zadana) oraz H (histereza).
+ */
+void controller() {
+    // Przeliczanie wartości zadanej (SP) na skalę 0-400
+    float setpoint = (_sp / 100.0) * 400;
+    
+    // Wyznaczanie granic histerezy
+    float h_half = (_h / 100.0) * 400 / 2.0;
+
+    // Sprawdzanie warunków działania regulatora
+    if (_e > h_half) {
+        cv = true;
+        PORTB |= (1 << PB5);  // Ustaw D13 na wysoki stan (włącz diodę)
+    } else if (_e < -h_half) {
+        cv = false;
+        PORTB &= ~(1 << PB5); // Ustaw D13 na niski stan (wyłącz diodę)
+    }
+}
+
+
+
 
 /**
  * @brief Główna funkcja programu
@@ -231,9 +258,10 @@ int main(void) {
 
     while(1) {
         change_values();  // Sprawdzamy zmiany przycisków
-        _pv3 = read_A5(); // Odczytujemy aktualną wartość procesu
-        print_LCD(); // Wyświetlamy dane na LCD
-        // print_SW(); // Wyświetlanie stanów przycisków
+        read_inputs(); // Odczytujemy aktualną wartości
+        controller();     // Uruchom regulator dwustawowy
+        print_LCD();      // Wyświetlamy dane na LCD
+        //print_SW();     // Wyświetlanie stanów przycisków
     }
 
     return 0;
